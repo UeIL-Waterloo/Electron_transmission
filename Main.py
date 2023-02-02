@@ -241,7 +241,7 @@ class analyseTransmission:
 
 if __name__ == '__main__':
     energies = [1, 2, 4, 8, 16, 32, 64, 128, 256]
-    SiN = compoundInfo(name='Silicon nitride', density=3.44, molecularFormulaDict={"Silicon": 3, "Nitrogen": 4})
+    SiN = compoundInfo(name='Silicon nitride', density=3.2, molecularFormulaDict={"Silicon": 3, "Nitrogen": 4})
     Carbon = compoundInfo(name='Carbon', density=2.0, molecularFormulaDict={"Carbon": 1})
     Graphene = compoundInfo(name='Graphene', density=2.0, molecularFormulaDict={"Carbon": 1})
     Water = compoundInfo(name='Liquid water (oxygen)', density=0.997, molecularFormulaDict={"Oxygen": 1}, MW=18.01528)
