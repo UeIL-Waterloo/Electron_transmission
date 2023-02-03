@@ -288,9 +288,11 @@ if __name__ == '__main__':
     thicknessSiN = 10  # nm
     for energy in energies:
         SiNMFP = Transmission(SiN).calcMFP(energy)
+        WaterMFP = Transmission(Water).calcMFP(energy)
         Water2MFP = Transmission(Water2).calcMFP(energy)
-        equivalentThicknessWater.append(thicknessSiN / SiNMFP * Water2MFP)
-
+        WateravgMFP = (WaterMFP + Water2MFP) / 2
+        equivalentThicknessWater.append(thicknessSiN / SiNMFP * WateravgMFP)
+    print(equivalentThicknessWater)
     # Fit to exponential.
     params, _ = curve_fit(mathHelper.expFunc, energies, equivalentThicknessWater, p0=[42.6, -0.133, -2.78],
                           method='dogbox')
@@ -299,8 +301,11 @@ if __name__ == '__main__':
     for x in fitx:
         fity.append(mathHelper.expFunc(x, params[0], params[1], params[2]))
 
+    #print(*params)
     plt.plot(energies, equivalentThicknessWater, 'ko')
     plt.plot(fitx, fity)
+    plt.ylim(33,40)
     plt.ylabel('Thickness of liquid water (oxygen) equivalent to 10nm Si3N4')
     plt.xlabel('Energy (keV)')
+    plt.savefig('newplot.pdf')
     plt.show()
