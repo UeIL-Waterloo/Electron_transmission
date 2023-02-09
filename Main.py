@@ -117,6 +117,22 @@ class mathHelper:
     def expFunc(x, a, b, c):
         return a * (1 - math.e ** (b * x + c))
 
+    @staticmethod
+    def logarithm(x, a, b, c):
+        return a * np.log(x-c) + b
+    @staticmethod
+    def fitFunc(func, x, y, fitXmin, fitYmin, p0=False):
+        if p0:
+            params, _ = curve_fit(func, x, y, p0=p0, method='dogbox')
+        else:
+            params, _ = curve_fit(func, x, y, method='dogbox')
+        fitx = np.linspace(fitXmin, fitYmin, num=fitYmin-fitXmin)
+        fity = []
+        for x in fitx:
+            fity.append(func(x, *params))
+
+        return params, fitx, fity
+
 
 class plotHelper:
 
@@ -167,6 +183,7 @@ class Transmission:
         self.compoundDict = compoundDict
         self.compoundTotSCSDict = compoundCalculationHelper(compoundDict).converttotESCStoSCS()
         self.Avogadro = 6.02E+23
+        self.energy_data = [1, 2, 4, 8, 16, 32, 64, 128, 256]
         if compoundDict.MW != None:
             self.MWtot = compoundDict.MW
         else:
@@ -179,12 +196,7 @@ class Transmission:
             self.MWtot = MWtot
 
     def calcCompoundMFP(self, energy):
-        # Get the energy in list closest to the energy given.
-        # if energy not in self.energies:
-        #     energy = min(self.energies, key=lambda x: abs(x - energy))
-        #     print("Used closest energy available for calculation: " + str(energy))
-        # TODO: add interpolation function for any energy calculations.
-
+        # Only use for given energy values (self.energy_data).
         denom = 0
         for elem, elemTotSCSDict in self.compoundTotSCSDict.items():
             totSCS = elemTotSCSDict['totSCS'][energy]
@@ -194,11 +206,36 @@ class Transmission:
                                                                                   ratioNum=ratioNum,
                                                                                   totSCS_1energy=totSCS)
             denom = denom + add
-        return 1 / denom
+        # Converts to nm.
+        return 1 / denom * math.pow(10, 23)
 
     def calcMFP(self, energy):
-        # Converts to nm.
-        return self.calcCompoundMFP(energy) * math.pow(10, 23)
+        # Returns MFP in nm.
+        if energy not in self.energy_data:
+            params, _, _ = self.interpolateMFP()
+            return mathHelper.logarithm(energy, *params)
+        else:
+            return self.calcCompoundMFP(energy)
+
+    def interpolateMFP(self, maxEnergy=300, showFit=False):
+        # Get MFP for all available energies for compound.
+        compoundMFPs = []
+        for e in self.energy_data:
+            compoundMFPs.append(self.calcMFP(e))
+
+        params, fitx, fity = mathHelper.fitFunc(mathHelper.logarithm, x=self.energy_data, y=compoundMFPs, fitXmin=0,
+                                                fitYmin=maxEnergy, p0=[6, 1.5, 0.2])
+
+        if showFit:
+            plt.plot(self.energy_data, compoundMFPs, 'ko')
+            plt.plot(fitx, fity)
+            plt.show()
+
+        # mathHelper.logarithm(energy, *params)
+
+        return params, fitx, fity
+
+
 
     def calcTransmission(self, thickness, energy):
         # Get MFP in nm.
@@ -216,10 +253,10 @@ class Transmission:
 
 
 class analyseTransmission:
-    def __init__(self, compoundDict, thickness):
+    def __init__(self, compoundDict, thickness, energy_data):
         self.compoundDict = compoundDict
         self.thickness = thickness
-        self.energy_data = [1, 2, 4, 8, 16, 32, 64, 128, 256]
+        self.energy_data = energy_data
 
     def getTransmissionVSEnergy(self):
         transmissionClass = Transmission(self.compoundDict)
@@ -230,7 +267,7 @@ class analyseTransmission:
         return transmission_data
 
     def plotTransmissionVSEnergy(self, smooth=True, color='red', linestyle='-'):
-        y = analyseTransmission(self.compoundDict, self.thickness).getTransmissionVSEnergy()
+        y = self.getTransmissionVSEnergy()
         if smooth:
             e, y = plotHelper.smoothData(xlist=self.energy_data, ylist=y)
 
@@ -240,7 +277,8 @@ class analyseTransmission:
 
 
 if __name__ == '__main__':
-    energies = [1, 2, 4, 8, 16, 32, 64, 128, 256]
+
+    energies = [1, 2, 4, 8, 16, 32, 64, 128, 256, 300]
     SiN = compoundInfo(name='Silicon nitride', density=3.2, molecularFormulaDict={"Silicon": 3, "Nitrogen": 4})
     Carbon = compoundInfo(name='Carbon', density=2.0, molecularFormulaDict={"Carbon": 1})
     Graphene = compoundInfo(name='Graphene', density=2.0, molecularFormulaDict={"Carbon": 1})
@@ -250,13 +288,14 @@ if __name__ == '__main__':
 
     # Plot Liquid Cell transmission data.
     plt.figure()
-    analyseTransmission(Graphene, thickness=0.335 * 2).plotTransmissionVSEnergy(color='black')
-    analyseTransmission(Carbon, thickness=2.5 * 2).plotTransmissionVSEnergy(color='green')
-    analyseTransmission(SiN, thickness=60).plotTransmissionVSEnergy(color='orange')
-    analyseTransmission(SiN, thickness=10).plotTransmissionVSEnergy(color='orange', linestyle='--')
+    analyseTransmission(Graphene, thickness=0.335 * 2, energy_data=energies).plotTransmissionVSEnergy(color='black')
+    analyseTransmission(Carbon, thickness=2.5 * 2, energy_data=energies).plotTransmissionVSEnergy(color='green')
+    analyseTransmission(SiN, thickness=60, energy_data=energies).plotTransmissionVSEnergy(color='orange')
+    analyseTransmission(SiN, thickness=10, energy_data=energies).plotTransmissionVSEnergy(color='orange', linestyle='--')
     plt.ylabel('Transmission (%)')
     plt.xlabel('Energy (keV)')
     plt.legend()
+    plt.savefig('newplot.pdf')
     plt.show()
 
     # Plot MFP for different compounds.
@@ -293,13 +332,15 @@ if __name__ == '__main__':
         WateravgMFP = (WaterMFP + Water2MFP) / 2
         equivalentThicknessWater.append(thicknessSiN / SiNMFP * WateravgMFP)
     print(equivalentThicknessWater)
-    # Fit to exponential.
-    params, _ = curve_fit(mathHelper.expFunc, energies, equivalentThicknessWater, p0=[42.6, -0.133, -2.78],
-                          method='dogbox')
-    fitx = np.linspace(0, 300, num=300)
-    fity = []
-    for x in fitx:
-        fity.append(mathHelper.expFunc(x, params[0], params[1], params[2]))
+    # # Fit to exponential.
+    # params, _ = curve_fit(mathHelper.expFunc, energies, equivalentThicknessWater, p0=[42.6, -0.133, -2.78],
+    #                       method='dogbox')
+    # fitx = np.linspace(0, 300, num=300)
+    # fity = []
+    # for x in fitx:
+    #     fity.append(mathHelper.expFunc(x, params[0], params[1], params[2]))
+
+    params, fitx, fity = mathHelper.fitFunc(mathHelper.expFunc, x=energies, y=equivalentThicknessWater, fitXmin=0, fitYmin=300, p0=[42.6, -0.133, -2.78])
 
     #print(*params)
     plt.plot(energies, equivalentThicknessWater, 'ko')
@@ -307,5 +348,5 @@ if __name__ == '__main__':
     plt.ylim(33,40)
     plt.ylabel('Thickness of liquid water (oxygen) equivalent to 10nm Si3N4')
     plt.xlabel('Energy (keV)')
-    plt.savefig('newplot.pdf')
+    # plt.savefig('newplot.pdf')
     plt.show()
