@@ -121,10 +121,10 @@ class mathHelper:
 class plotHelper:
 
     @staticmethod
-    def smoothData(xlist: list[float], ylist: list[float], totalpoints: bool = 300):
+    def smoothData(xlist, ylist, totalpoints: bool = 300):
         # Smooth data.
         xlist_smooth = np.linspace(min(xlist), max(xlist), totalpoints)
-        spl = make_interp_spline(xlist, ylist, k=2)  # type: BSpline
+        spl = make_interp_spline(xlist, ylist, k=2)
         ylist_smooth = spl(xlist_smooth)
         return xlist_smooth, ylist_smooth
 
